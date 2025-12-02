@@ -1,0 +1,508 @@
+---
+title: "ECON590 ML Final Project"
+author: "Hsiang Lee (hsiangl2@illinois.edu), Hanzhe Dong (hanzhe2@illinois.edu)"
+output: 
+  html_document:
+    keep_md: false
+date: "2025-04-21"
+---
+Project Question:
+
+This project investigates whether it is possible to predict the daily direction of financial asset prices by using past price and volume information. This problem is central to both academic finance and practical trading, as accurate short-term price prediction could provide insights into market efficiency and help develop systematic trading strategies.
+
+Understanding the predictability of daily price direction is important because it directly tests the limits of available information and the potential for excess returns. While traditional finance theory suggests that price movements are largely random in the short term, advances in machine learning offer new tools that may uncover subtle patterns because they can handle non-linear relationships and high-dimensional feature spaces more effectively than traditional models. This project aims to explore whether modern classification algorithms can extract useful signals from historical price behavior.
+
+
+
+Review of Literature:
+
+Based on Random Walk Theory (RWT), the price is unpredictable by using past data. However, many researchers showed the opposite evidence to challenge RWT. Jegadeesh & Titman (1993) suggested that there is a "momentum effect" in stock market which keeps price tend to be move in the same way. In addition, "Volatility Clustering" is high volatility tends to be followed by high volatility and vice versa, which seems to be a common phenomenon among financial markets shown by many researchers such as Thomas Lux (1999). Besides, trading volume is also relevant for volatility suggested by Timothy J Brailsford (1996).
+
+Apart from the lagged terms, there are also various exogenous factors which are correlated with the price volatility. Schwert (1989) indicated that macroeconomic factors like inflation and interest rates have important impacts on price volatility. However, the scope of this study will not cover those macroeconomic factors since our objective is short-term price change, while economic variables are appropriate for mid-term to long-term changes.
+
+Since there are many opposite evidence of the characteristic of price movements, this study aims to provide a comprehensive overview by investigating financial markets with long-term daily data (2005-2024).
+
+
+
+Data:
+
+Given the time series nature of this problem, it is extremely crucial to prevent data leakage, which would result in distortion of prediction outcomes. We ensure that every explanatory variable has been preprocessed by solely using information available prior to our objective variable, which is the daily price move direction, and properly aligned with it for a dataframe. 
+
+Our research focus is to analyze the short term daily price movement direction through a series of price and volume factors. We will cover the movement direction of recent short and mid term, classic technical analysis such as 20-day simple moving average compared with close price, market sentiment as VIX index, the volatility, close price and volume change of the previous day. Last but not least, we include two interaction terms in order to capture the potential non-linearity of the model.
+
+
+•close, high, low, open, volume, vix: six original features which will generate all explanatory variables below.
+
+Explanatory Variables:
+•updown1: the direction of D-1 (up is 1; down is 0) (compare the close and open price).
+•updown2: the direction of D-2.
+•updown3: the direction of D-3.
+•updown4: the direction of D-4.
+•updown5: the direction of D-5.
+•20d_direction: the direction from open of D-20 to close of D-1 (up is 1; down is 0).
+•above20ma: the close price of D-1 is higher or lower than 20ma which is the simple moving average close price calculated from D-20 to D-1 (above is 1; below is 0).
+•vix1: the vix index of D-1.
+•volatility1: high of D-1 divided by low of D-1.
+•volumechange: the percentage change in volume from D-2 to D-1 （change rate could avoid the scaling problem) (for realistic purposes we could only possibly see the change rate from D-2 to D-1 every time).
+•pricechange: the absolute value of percentage change in close price from D-2 to D-1 (because the direction is already captured by "updown1").
+•pricevolume_interact: pricechange * volumechange.
+•volatilityvolume_interact: volatility1 * volumechange.
+
+Response Variable:
+•response: the direction of close price from D-1 to D-0 (up is 1; down is 0).
+
+
+Source of data: Yahoo Finance
+Link: 
+https://finance.yahoo.com/quote/%5EGSPC/history/
+https://drive.google.com/file/d/1PkzfrXVRcge38UsnhMNAVS3RVZsDNZgN/view?usp=drivesdk
+
+
+
+```{r}
+df<-read.csv('df3333.csv')
+```
+
+
+Methodology 1.1:
+
+Since the response variable is binary classification problem, we will first perform logistic regression and start with a basic train-test split approach. The training set includes 75% of the data, which is year 2005-2019, while the remaining data from 2020-2024 is served for out-of-sample test to determine how well the model generalizes to unseen data. 
+
+Single Split (train: 2005-2019; test: 2020-2024)
+```{r}
+train<-df[df$Date<2020, ]
+test<-df[df$Date>=2020, ]
+tail(train)
+head(test)
+```
+Logistic Regression
+```{r}
+model <- glm(response ~ updown1 + updown2 + updown3 + updown4 + updown5 + X20d_direction + above20ma + vix1 + volatility1 + volumechange + pricechange + pricevolume_interact + volatilityvolume_interact, data=train, family=binomial)
+summary(model)
+```
+```{r}
+library(pROC)
+glm.probs=predict(model,newdata=test, type="response") 
+glm.pred=ifelse(glm.probs >0.5,"1","0")       #up is 1, down is 0
+Actual<-test$response
+
+# confusion matrix: prediction performance on test set 
+table(glm.pred,Actual)
+mean(glm.pred==Actual)
+
+#Area Under ROC Curve
+roc<-roc(Actual, glm.probs)
+print(auc(roc))
+```
+
+The outcome shows that there are only four predictions are statistically significant at 5% level. They are updown1, volumechange, and the two interaction terms. The direction of D-1 presents the most significance while the other three just marginally significant. Despite the inclusion of multiple variables, the model’s residual deviance (5179.1) showed little improvement compared to the null deviance (5199.8), indicating limited explanatory power.
+
+Model performance will be evaluated using the test set on accuracy, confusion matrix, and Area Under the ROC Curve (AUC). Accuracy measures the proportion of correctly predicted data, but it can be misleading when one class dominates the other class. In contrast, AUC evaluates the stability of a model to discriminate between positive and negative classes, reflecting the trade-off between the true positive rate and false positive rate and provide a comprehensive view of model performance. AUC values closer to 1.0 indicate excellent model performance, while a value of 0.5 suggests that the model performs no better than random guessing. In most applied settings, an AUC above 0.7 is considered acceptable, while values above 0.8 indicate strong discriminatory power.
+
+The output shows accuracy of 47.6%, which is below the baseline accuracy one would achieve by simply guessing the majority class. More importantly, the AUC (Area Under the ROC Curve) is 0.5829, indicating that the model’s ability to distinguish between the two classes is only slightly better than random guessing (AUC = 0.5). The relatively high number of false positives (77) and false negatives (55) suggests that the model struggles to separate the two classes meaningfully. This may be due to insufficient predictive power in the features, class overlap, or possible imbalance in the data.
+
+
+
+Methodology 1.2:
+
+One of the main objectives is to evaluate the consistency of price behavior across different years. In this section, we will use a smaller time period as training set and every remaining single year as test set. Therefore, the training set is 2005-2009, and there are fifteen test sets which cover 2010-2024 respectively. This forecast design carries several important implications. We will test the model’s ability to generalize beyond its training period, simulating a realistic forecast through a long future period. In addition, we will discover if there exists deterioration of prediction accuracy over time due to some essential structural changes of the financial market by checking the prediction performance year by year. This framework also provides insights if a model needs to be retrained regularly or it tends to be sustainable. The result of prediction power is expected to decline over time since no one will believe financial market in recent months will be similar to a few years ago, let alone around two decades ago.
+
+Decay of Prediction Power (train first 5 years, test every single year)
+(training set: 1, test set: 15)
+```{r}
+for (start in 2005:2019) {
+  train <- df[df$Date < 2010, ]
+  test <- df[df$Date >= start + 5 & df$Date < start+6, ]
+  model2 <- glm(response ~ updown1 + updown2 + updown3 + updown4 + updown5 + X20d_direction + above20ma + vix1 + volatility1 + volumechange + pricechange + pricevolume_interact + volatilityvolume_interact, data=train, family=binomial)
+
+  glm.probs=predict(model2,newdata=test, type="response") 
+  glm.pred=ifelse(glm.probs >0.5,"1","0")
+  Actual<-test$response
+  print(table(glm.pred,Actual))
+  print(mean(glm.pred==Actual))
+  roc<-roc(Actual, glm.probs)
+  print(auc(roc))
+}
+
+summary(model2)
+```
+Graph of Decay (AUC and Accuracy)
+```{r}
+#AUC by year
+years<-2010:2024
+auc<-c(0.5764,0.5308,0.5438,0.5096,0.5278,0.5423,0.5507,0.585,0.5386,0.5078,0.569,0.514,0.4916,0.4864,0.5669)
+auc_df<-data.frame(Year=years, AUC=auc)
+
+library(ggplot2)
+ggplot(auc_df, aes(x = Year, y = AUC)) +
+  geom_line(size = 1, color = "blue") +
+  geom_point(size = 2, color = "blue") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  labs(title = "AUC by Year",
+       subtitle = "Dashed red line indicates random prediction (AUC = 0.5)",
+       x = "Year",
+       y = "AUC") +
+  theme_minimal()
+
+#Accuracy versus Positive ratio by year
+years<-2010:2024
+accuracy<-c(0.6031746,0.484127,0.504,0.547619,0.5515873,0.4761905,0.5515873,0.5737052,0.4940239,0.5357143,0.5652174,0.5396825,0.4302789,0.528,0.5)
+positive_ratio<-c(0.5714286,0.547619,0.528,0.5833333,0.5714286,0.4722222,0.5198413,0.5697211,0.5258964,0.5952381,0.5731225,0.5674603,0.4302789,0.548,0.5674603)
+accuracy_df<-data.frame(Year=years, Accuracy=accuracy, Positive_ratio=positive_ratio)
+
+ggplot(accuracy_df, aes(x = Year)) +
+  geom_line(aes(y = Accuracy), size = 1.2, color='blue') +
+  geom_line(aes(y = Positive_ratio), size = 1.2, linetype = "dashed", color='grey') +
+  labs(title = "Accuracy versus Positive ratio by Year",
+       subtitle = "blue: Accuracy, grey dased: Positive ratio",
+       x = "Year",
+       y = "ratio") +
+  theme_minimal()
+```
+From the model outcome trained by only 2005-2009, we could see the direction of D-1 shows a more significant impact compared to our first model; however, there are no features present significance at 5% level. On the other hand, we visualize the performance of fifteen test sets so that it could be much easier to analyze the outcomes. The first plot illustrates the yearly AUC values of the classifier, with a dashed line of random prediction (AUC=0.5). Almost the values of all single years are above 0.5 and about three points reach closer to 0.6; however, it still shows poor ability to distinguish between two classifications. What is interesting is except for the lowest points in 2022 and 2023, the prediction power doesn’t show some decline through the 15-year period even if the model is trained only by using 5-year period which is almost 20 years ago. The second plot presents the prediction accuracy over the years (blue line) with real upward proportion of each year (grey dashed line) for comparison. The close alignment between the two lines indicates that much of the classifier’s accuracy can be attributed to class imbalance rather than true predictive skill. In particular, years with a higher proportion of positive cases tend to show higher accuracy, highlighting the model’s tendency to follow class frequency instead of learning meaningful patterns. Again, the model demonstrates no statistically significant predictive ability but exhibits no obvious decline in predictive accuracy over time.
+
+
+
+Methodology 1.3:
+
+Additionally, different approaches like rolling window and expanding window will be covered in following sections to evaluate the objective of this study. Rolling window approach is a common technique in time series analysis. In this method a fixed-size training window is moved forward step by step across the data set. At each step, the model is re-estimated by using most recent data and dropping the oldest data to generate the subsequent fixed-size test set. We train every four years and test the subsequent year. The first training set is 2005-2008 to test 2009, and the last training set is 2020-2023  to test 2024. This framework will produce sixteen models and we could expect to see the improvement of regularly retrain the model by using new data. Additionally we could observe the significance of each explanatory variable to evaluate if they tend to vary over time. Although there are four significant variations among our initial selections, we will continue to use the full model in the following analysis because we do not know if the significant variables are all the same subset in every time period given this preliminary model is just a single split. 
+
+Rolling Window (train every 4 years; test every next 1 year)
+(training set: 16, test set: 16)
+```{r}
+for (start in 2005:2020) {
+  train <- df[df$Date < start + 4 & df$Date >= start, ]
+  test <- df[df$Date >= start + 4 & df$Date < start+5, ]
+  print(train)
+  print(test)  # see if the settings are correct
+}
+```
+
+```{r}
+for (start in 2005:2020) {
+  train <- df[df$Date < start + 4 & df$Date >= start, ]
+  test <- df[df$Date >= start + 4 & df$Date < start+5, ]
+  model3 <- glm(response ~ updown1 + updown2 + updown3 + updown4 + updown5 + X20d_direction + above20ma + vix1 + volatility1 + volumechange + pricechange + pricevolume_interact + volatilityvolume_interact, data=train, family=binomial)
+  print(summary(model3))
+  glm.probs=predict(model3,newdata=test, type="response") 
+  glm.pred=ifelse(glm.probs >0.5,"1","0")
+  Actual<-test$response
+  print(table(glm.pred,Actual))
+  print(mean(glm.pred==Actual))
+  roc<-roc(Actual, glm.probs)
+  print(auc(roc))
+}
+```
+Graph of Rolling Logistic Regression (AUC and Accuracy)
+```{r}
+#AUC by year
+years<-2009:2024
+auc<-c(0.5311,0.5591,0.5257,0.5089,0.506,0.5377,0.567,0.4908,0.5504,0.5182,0.5304,0.568,0.5111,0.5317,0.5345,0.5829)
+auc_df2<-data.frame(Year=years, AUC=auc)
+
+library(ggplot2)
+ggplot(auc_df2, aes(x = Year, y = AUC)) +
+  geom_line(size = 1, color = "blue") +
+  geom_point(size = 2, color = "blue") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  labs(title = "AUC by Year",
+       subtitle = "Dashed red line indicates random prediction (AUC = 0.5)",
+       x = "Year",
+       y = "AUC") +
+  theme_minimal()
+
+#Accuracy versus Positive ratio by year
+years<-2009:2024
+accuracy<-c(0.5436508,0.5674603,0.4801587,0.544,0.5595238,0.5595238,0.484127,0.531746,0.5258964,0.4661355,0.4722222,0.5652174,0.5634921,0.4621514,0.544,0.4761905)
+positive_ratio<-c(0.5555556,0.5714286,0.547619,0.528,0.5833333,0.5714286,0.4722222,0.5198413,0.5697211,0.5258964,0.5952381,0.5731225,0.5674603,0.4302789,0.548,0.5674603)
+accuracy_df2<-data.frame(Year=years, Accuracy=accuracy, Positive_ratio=positive_ratio)
+
+ggplot(accuracy_df2, aes(x = Year)) +
+  geom_line(aes(y = Accuracy), size = 1.2, color='blue') +
+  geom_line(aes(y = Positive_ratio), size = 1.2, linetype='dashed', color='grey') +
+  labs(title = "Accuracy versus Positive ratio by Year",
+       subtitle = "blue: Accuracy, grey dashed: Positive ratio",
+       x = "Year",
+       y = "ratio") +
+  theme_minimal()
+```
+Through sixteen logistic regressions generated by rolling window approach, we could observe changes in significant variables across each overlapping 4-year period. We could see updown1 shows significance in half of the sixteen models; however, there is no any significant predictors in some models. It shows that the price action is not consistent across a long period because some variables exhibit significance during specific time periods, while appearing irrelevant in others.
+
+While AUC values fluctuate over time, they consistently stay within a narrow range of approximately 0.50 to 0.57. This suggests that the model has no stable or substantial ability to discriminate between classes, and its performance is only marginally better than random in most years. For the second graph,  the close co-movement between the two lines suggests that the classifier may be biased toward majority class guessing, and that accuracy is largely driven by class imbalance rather than true model effectiveness.
+
+Since the rolling window approach optimizes the impact of each predictors in each window, it is expected it will perform better than a fixed model that would not be retained in a long future. For clearer comparison, we employ overlaid plot to visualize the AUC and accuracy of two framework, one is fixed model, the other is rolling model.
+
+Comparison of Decay and Rolling Window
+```{r}
+#AUC comparison of Decay and Rolling Window
+years<-2010:2024
+auc_decay<-c(0.5764,0.5308,0.5438,0.5096,0.5278,0.5423,0.5507,0.585,0.5386,0.5078,0.569,0.514,0.4916,0.4864,0.5669)
+auc_rolling<-c(0.5591,0.5257,0.5089,0.506,0.5377,0.567,0.4908,0.5504,0.5182,0.5304,0.568,0.5111,0.5317,0.5345,0.5829)
+
+auc_df5<-data.frame(Year=years,AUC_Decay=auc_decay,AUC_Rolling=auc_rolling)
+
+ggplot(auc_df5, aes(x = Year)) +
+  geom_line(aes(y = AUC_Decay), size = 1.2, color='blue') +
+  geom_line(aes(y = AUC_Rolling), size = 1.2, color='red') +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "grey") +
+  labs(title = "AUC_Decay versus AUC_Rolling by Year",
+       subtitle = "blue: AUC_Decay, red: AUC_Rolling, grey dashed: random prediction (AUC = 0.5)",
+       x = "Year",
+       y = "AUC") +
+  theme_minimal()
+
+
+
+#accuracy comparison of Decay and Rolling Window
+years<-2010:2024
+accuracy_decay<-c(0.6031746,0.484127,0.504,0.547619,0.5515873,0.4761905,0.5515873,0.5737052,0.4940239,0.5357143,0.5652174,0.5396825,0.4302789,0.528,0.5)
+accuracy_rolling<-c(0.5674603,0.4801587,0.544,0.5595238,0.5595238,0.484127,0.531746,0.5258964,0.4661355,0.4722222,0.5652174,0.5634921,0.4621514,0.544,0.4761905)
+positive_ratio<-c(0.5714286,0.547619,0.528,0.5833333,0.5714286,0.4722222,0.5198413,0.5697211,0.5258964,0.5952381,0.5731225,0.5674603,0.4302789,0.548,0.5674603)
+
+accuracy_df5<-data.frame(Year=years, Accuracy_Decay=accuracy_decay, Accuracy_Rolling=accuracy_rolling, Positive_ratio=positive_ratio)
+
+ggplot(accuracy_df5, aes(x = Year)) +
+  geom_line(aes(y = Accuracy_Decay), size = 1.2, color='blue') +
+  geom_line(aes(y = Accuracy_Rolling), size = 1.2, color='red') +
+  geom_line(aes(y = Positive_ratio), size = 1.2, linetype='dashed', color='grey') +
+  labs(title = "Accuracy_Decay versus Accuracy_Rolling with Positive ratio by Year",
+       subtitle = "blue: Accuracy_Decay, red: Accuracy_Rolling, grey dashed: Positive ratio",
+       x = "Year",
+       y = "ratio") +
+  theme_minimal()
+```
+The first plot, however, does not meet our expectations. Neither approach demonstrates consistency superior performance across the entire time span. This suggests that while rolling window and fixed model capture slightly different data structures, neither significantly improves the model’s ability to separate classes, and both remain within the bounds of marginal predictability. That is to say, the more computational effort in rolling window approach does not deliver significant extra performance.
+
+The second plot, the two approaches show no obvious difference in predictive accuracy while they are both closely aligned with the positive ratio. Often times, the predictions are lower than the actual upward proportion, meaning we could get better and more stable results if we guess going upwards every time.
+
+
+
+Methodology 1.4:
+
+We discovered that the outcomes tend to be varying and unstable throughout the remaining dataset when the test set is one single year. Hence, this time we extend the test set to rolling two years to see if the results become more smooth and stable. In addition, we will conduct expanding window approach in this section. This method is similar to rolling window, the test sets remain fixed; however, new observations are added to training set at each iteration, allowing the model to continuously learn from an increasing history of past data. 
+
+We start with the first four years (2005-2008) to train and the next two years (2009, 2010) to test. And the train set will be added one year at each iteration. The last train set is 2005-2022 and the last test set is 2023 and 2024. There are fifteen models in total. Since the training set grows over time, we expect the results would be better than all the approaches we have discussed above.
+
+Expand Window (increasing training set, test set remains 2 years)
+(training set: 15, test set: 15)
+```{r}
+for (start in 2005:2019) {
+  train <- df[df$Date < start + 4, ]
+  test <- df[df$Date >= start + 4 & df$Date < start+6, ]
+  model4 <- glm(response ~ updown1 + updown2 + updown3 + updown4 + updown5 + X20d_direction + above20ma + vix1 + volatility1 + volumechange + pricechange + pricevolume_interact + volatilityvolume_interact, data=train, family=binomial)
+  print(summary(model4))
+  glm.probs=predict(model,newdata=test, type="response") 
+  glm.pred=ifelse(glm.probs >0.5,"1","0")
+  Actual<-test$response
+  print(table(glm.pred,Actual))
+  print(mean(glm.pred==Actual))
+  roc<-roc(Actual, glm.probs)
+  print(auc(roc))
+}
+
+
+#AUC
+years<-2009:2023
+auc<-c(0.5538,0.5208,0.5351,0.508,0.5155,0.5318,0.5391,0.5552,0.5174,0.5192,0.5239,0.5235,0.5113,0.4939,0.5301)
+auc_df3<-data.frame(Year=years, AUC=auc)
+
+library(ggplot2)
+ggplot(auc_df3, aes(x = Year, y = AUC)) +
+  geom_line(size = 1, color = "blue") +
+  geom_point(size = 2, color = "blue") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  labs(title = "AUC by Year and Year+1",
+       subtitle = "Dashed red line indicates random prediction (AUC = 0.5)",
+       x = "Year",
+       y = "AUC") +
+  theme_minimal()
+```
+Among the fifteen models, updown1 shows strong significance in every window. And as the training set collects more historical data, volumechange and two interaction terms gradually shows their significance as the preliminary model. However, with the expanding training set and increased test set, the AUC of every 2-year period test set still presents similar outcomes to previous discussions.
+
+
+
+Methodology 2.1:
+
+Since the every modification of logistic regressions could not meet the expected results, we then proceed to explore other non-parametric machine learning classification approaches for further experimentation and analysis.
+
+To illustrate the classification of the relationship between the variables and the response, in this part, we shall utilize the decision tree algorithm to present the outcomes. The purpose of the decision tree algorithm in machine learning is to create a model that predicts the value of a target variable by learning simple decision rules inferred from data features. In this part, we use data before 2020 as the training model and use data after 2020 to test and predict. 
+
+Decision Tree
+```{r}
+library(tree)
+train=df[df$Date<2020, ]
+test=df[df$Date>=2020, ]
+
+tree1<-tree(response ~ updown1 + updown2 + updown3 + updown4 + updown5 + X20d_direction + above20ma + vix1 + volatility1 + volumechange + pricechange + pricevolume_interact + volatilityvolume_interact , data=train, method='class')
+summary(tree1)
+```
+
+However, the output turns out that no variables were selected for splitting. The model decides not to split at all, implying it could not find a feature that improves classification enough to justify a split. Therefore, from the outcome, we shall determine the model fails to hold predictive power. Such a lack of predictive power might be caused by little variation in training data and noise among data.
+
+
+
+Methodology 2.2:
+
+To capture complex patterns with non-linear relationships, we have chosen to use the gradient boosting machine (GBM) model to analyze the binary response variable alongside market-related features. The GBM is an ensemble learning method that constructs multiple shallow decision trees in a sequential manner. Each new tree is designed to correct the residual errors of the trees that were built previously. In this study, the model is trained on data from before 2020 and tested on data from 2020 onwards. Specifically, we train a total of 5,000 trees, with each tree having a maximum depth of 3. 
+
+Gradient Boost Machine
+```{r}
+library(gbm)
+
+train<-df[df$Date<2020, ]
+test<-df[df$Date>=2020, ]
+
+set.seed(1)
+boost = gbm(
+  response ~ updown1 + updown2 + updown3 + updown4 + updown5 + X20d_direction + above20ma + vix1 + volatility1 + volumechange + pricechange + pricevolume_interact + volatilityvolume_interact,
+  data = train,
+  distribution = "bernoulli",   
+  n.trees = 5000,               
+  interaction.depth = 3         
+)
+
+boost_probs = predict(boost, newdata = test, n.trees = 5000, type = "response")
+
+boost_pred = ifelse(boost_probs > 0.5, "1", "0")
+
+conf_mat = table(boost_pred, test$response)
+print(conf_mat)
+cat("Accuracy: ", mean(boost_pred == test$response), "\n")
+
+roc<-roc(test$response, boost_probs)
+print(auc(roc))
+```
+
+By summing up the results, the accuracy is around 51%, which is close to random guessing, indicating low predicting power to the test sets. We propose some potential causes for this outcome. Like we state above, overfitting is one of the main potential causes. Moreover, it is not negligible to notice the influence of noisy features and weak distinguishing ability. Such features may not sufficiently distinguish between classes, so models cannot distinguish among them.
+
+
+
+Methodology 2.3:
+
+In this part, we intend to use extreme gradient boosting (XGBoost) to rerun the data and try to create another model. This XGBoost is a powerful ensemble learning algorithm based on gradient boosting. Its purpose is to combine multiple weak learners, typically decision trees, to create a strong predictive model. It is widely used in classification and regression problems for its speed and accuracy. As we previously utilized, the model is trained on data from before 2020 and tested on data from 2020 onwards.
+
+XGBoost
+```{r}
+library(xgboost)
+
+train_index = df$Date < 2020
+test_index = df$Date >= 2020
+
+features = c('updown1' , 'updown2' , 'updown3' ,'updown4' ,'updown5' ,'X20d_direction' , 'above20ma' , 'vix1' , 'volatility1' , 'volumechange' ,'pricechange' , 'pricevolume_interact', 'volatilityvolume_interact')
+
+train_X = as.matrix(df[train_index, features])
+train_y = df$response[train_index]
+
+test_X = as.matrix(df[test_index, features])
+test_y = df$response[test_index]
+
+dtrain = xgb.DMatrix(data = train_X, label = train_y)
+dtest = xgb.DMatrix(data = test_X, label = test_y)
+
+set.seed(1)
+xgb_model = xgboost(
+  data = dtrain,
+  nrounds = 100,               
+  objective = "binary:logistic",
+  eval_metric = "error",        
+  max_depth = 3,
+  eta = 0.1,
+  verbose = 0
+)
+
+xgb_probs = predict(xgb_model, newdata = dtest)
+
+xgb_pred = ifelse(xgb_probs > 0.5, 1, 0)
+
+conf_mat = table(Predicted = xgb_pred, Actual = test_y)
+print(conf_mat)
+cat("Accuracy: ", mean(xgb_pred == test_y), "\n")
+
+roc<-roc(test_y, xgb_probs)
+print(auc(roc))
+```
+
+The accuracy result turns out to be 0.5151, which is barely better than random guessing. Moreover, the AUC of 0.5022 suggests no discriminatory power, since in practice, "AUC > 0.7" is usually considered acceptable. Thus, the outcome indicates the model is not learning any meaningful pattern from the data.
+
+
+
+Methodology 2.4:
+
+Last but not least, we utilize the support vector machine algorithm to test the data. The SVM is a supervised learning algorithm used primarily for classification. Its main goal is to find the optimal decision boundary (hyperplane) that separates different classes in the feature space with the maximum margin. In this part, we use the SVM with a linear kernel to solve this binary classification problem. 
+
+SVM
+```{r}
+library(e1071)
+
+train<-df[df$Date<2020, ]
+test<-df[df$Date>=2020, ]
+
+svm<-svm(response~updown1 + updown2 + updown3 + updown4 + updown5 + X20d_direction + above20ma + vix1 + volatility1 + volumechange + pricechange + pricevolume_interact + volatilityvolume_interact, data=train, kernel='linear', scale=TRUE, probability=TRUE)
+
+probs<-predict(svm, newdata=test,probability = TRUE)
+class<-ifelse(probs>0.5, 1, 0)
+Actual<-test$response
+print(table(class, Actual))
+print(mean(class==Actual))
+roc<-roc(Actual, class)
+print(auc(roc))
+```
+
+The accuracy result turned out to be 53.74%, which is similar to previous outcomes that settled around 50%. However, the AUC of 0.5 indicates this model fails again to demonstrate a meaningful decision boundary. This might be caused by class imbalance, non-informative features, and a linear kernel that is too simple. Thus, to get a better outcome, we continue to try the non-linear test.
+
+We shall use SVM with a radial basis function kernel as a non-linear classifier. Its purpose is to capture complex, non-linear relationships between input features and the target variable. The RBF kernel maps the input space into a higher-dimensional space, allowing the model to draw curved decision boundaries. But the outcome does not perform better. The accuracy results in 50.87% and AUC falls below 50%, which reflects poor predictive power. This indicates that the model fails to generalize or capture meaningful patterns in the data.
+
+non-linear SVM
+```{r}
+model_svm_rbf <- svm(response ~ updown1 + updown2 + updown3 + updown4 + updown5 + X20d_direction + above20ma + vix1 + volatility1 + volumechange + pricechange + pricevolume_interact + volatilityvolume_interact, 
+                     data = train,
+                     kernel = "radial",     
+                     gamma = 0.1,           
+                     cost = 1,              
+                     scale = TRUE,
+                     probability = TRUE)
+
+probs<-predict(model_svm_rbf, newdata=test,probability = TRUE)
+class<-ifelse(probs>0.5, 1, 0)
+Actual<-test$response
+print(table(class, Actual))
+print(mean(class==Actual))
+roc<-roc(Actual, class)
+print(auc(roc))
+```
+
+Distribution of up & down in each year and all data
+```{r}
+for (year in 2005:2024){
+  dff<-df[df$Date>=year & df$Date<year+1, ]
+  cat(year,':',mean(dff$response),'\n')
+}
+
+cat('all : ',mean(df$response),'\n')
+```
+
+Comparison among Classifiers
+```{r}
+library(dplyr)
+
+model_comparison<-data.frame(
+  Model=c('Logistic Regression','GBM','XGBoost','SVM','non-linear SVM'),
+  Accuracy=c(0.4761905,0.5063593,0.5151033,0.5373609,0.508744),
+  AUC=c(0.5829,0.5004,0.5022,0.5,0.4829)
+)
+library(knitr)
+library(kableExtra)
+
+kable(model_comparison, caption = "Comparison of Model Performance (Accuracy and AUC)" )%>%
+  kable_styling(full_width=TRUE, font_size = 16)
+```
+
+Conclusion: 
+
+Some of the observed prediction accuracies appear in our logistic models exceeding 50% and even 59% could largely be attributed to the proportion of upward movements in that particular testing year was relatively high. Therefore, it doesn’t necessarily indicate that the classifier itself has effective prediction capabilities. Even with many different types of training and test set combinations including rolling model, we still can conclude that the model is not equipped with predictive power. We use a smaller training set to test every single year and the predictive power does not decline. Similarly, we conduct expanding window and the predictive power does not increase as the training set becomes larger, either. From the confusion matrix, it is evident that the models tend to predict upward movements much more frequently than downward movements. This indicates that the model is heavily biased toward predicting one class. Such bias stems from the underlying distribution of the original data, where the proportion of upward days was already relatively higher, reaching 54.46%.
+
+After reviewing different kind of combinations of training and test sets, we turned to non-parametric models to see if there is any significant improvement. Given the main model we use is logistic and the limitation of the study, all non-parametric models conducted would be single split for fair comparison (train 2005-2019, test 2020-2024). And as the table shown, Logistic Regression, despite being a linear and interpretable baseline, delivered the highest AUC among the classifiers, suggesting strongest predictive performance yet still rather poor in normal evaluation criteria, which is a threshold of 0.7. On the other hand, XGBoost and SVM achieved slightly higher accuracy rates (0.5151 and 0.5374, respectively), but their AUC values remained close to 0.5, indicating poor ability to distinguish between classes beyond random guessing. Overall, the results suggest that while more complex models can slightly improve classification accuracy, they do not necessarily outperform simpler methods in terms of true discriminative power as measured by AUC.
+
+In conclusion, we conducted a comprehensive study involving well-rounded selection of price and volume based features, rigorous data processing procedures designed to strictly avoid look-ahead bias, multiple training and testing set configurations, and several classical robust non-parametric classification methods. We adopted AUC instead of accuracy, as our primary performance evaluation to account for potential class imbalance and threshold sensitivity. Despite these careful methodology choices, our findings suggest that using daily price direction as the response variable behaves largely like a random process, lacking significant predictability. This indicates that predicting single-day price movements may not be feasible within our current framework.
+
+Future research should consider redefining the response variable to capture multi-day price trends or classification based on the magnitude of price movements, even with a more dedicated operational definition to capture essence of price actions, rather than just simple daily direction. The inability to predict one-day returns does not imply that all aspects of market behavior are unpredictable, nor does it deny the existence of profitable trading strategies based on other market features.
