@@ -1,34 +1,47 @@
-# Predicting Daily S&P 500 Direction with Logistic Regression
+## 🧠 Project Overview
 
-This repository contains my ECON 590 Machine Learning final project.  
-The goal is to investigate whether we can **predict the daily price direction of the S&P 500 index (^GSPC)** using past price and volatility information.
+This project studies whether the **next-day market direction**
+can be predicted using **only market-based variables**
+(price, volume, and volatility),
+without relying on macroeconomic data.
 
-The full analysis and code are in the R Markdown file:
+The goal is to evaluate whether simple, interpretable models
+can capture any **stable short-term predictive patterns**
+in equity markets.
 
-> `ECON590_ML_Final_Project.Rmd`
-
----
-
-## Research Question
-
-Can we build a model that predicts whether the **next day's S&P 500 return will be positive (up) or negative (down)**, using only historical market data?
-
-This is closely related to the **Random Walk Theory (RWT)** and market efficiency:  
-if daily direction is completely unpredictable, a simple logistic regression should not perform much better than random guessing (AUC ≈ 0.5).
+👉 **[View the interactive HTML report](https://leo5525leo.github.io/Market-Direction-Classification/ML_Final_Project.html)**
 
 ---
 
-## Data
+## 🧮 Features & Target (Summary)
 
-- **Asset**: S&P 500 index (^GSPC)
-- **Source**: Yahoo Finance  
-  - https://finance.yahoo.com/quote/%5EGSPC/history/
-- **Sample period**: 2005–2024 (daily frequency)
-- **Raw variables**:
-  - `open`, `high`, `low`, `close`, `volume`
-  - `vix` (daily VIX index)
+- **Target**: next-day direction (up vs. down)
+- **Predictors**:
+  - Lagged price direction indicators (past 1–4 days)
+  - Interaction terms capturing short-term momentum patterns
+  - Simple volatility proxies and volume–volatility interactions
 
-In the R Markdown file, the data are loaded from a local CSV:
+Only market-derived variables are used.
 
-```r
-df <- read.csv("df3333.csv")
+---
+
+## 🧪 Methodology (High-level)
+
+- Logistic regression (binomial GLM)
+- Time-series–respecting evaluation:
+  - Fixed train–test split (2005–2019 / 2020–2024)
+  - Rolling-window re-estimation through time
+- Performance evaluated using:
+  - Accuracy
+  - AUC (ROC)
+
+---
+
+## 📊 Outputs
+
+The analysis produces:
+- Out-of-sample accuracy and AUC
+- Rolling yearly performance comparisons
+- Visual diagnostics to distinguish signal from noise
+
+All figures and detailed results are available in the interactive report.
