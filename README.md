@@ -13,7 +13,7 @@ in equity markets.
 
 ---
 
-##  Features & Target (Summary)
+##  Features & Target
 
 - **Target**: next-day direction (up vs. down)
 - **Predictors**:
@@ -25,7 +25,7 @@ Only market-derived variables are used.
 
 ---
 
-##  Methodology (High-level)
+##  Methodology 
 
 - Logistic regression (binomial GLM)
 - Time-series–respecting evaluation:
