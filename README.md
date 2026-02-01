@@ -9,7 +9,7 @@ The goal is to evaluate whether simple, interpretable models
 can capture any **stable short-term predictive patterns**
 in equity markets.
 
-👉 **[View the interactive HTML report](https://leo5525leo.github.io/Market-Direction-Classification/ML_Final_Project.html)**
+ **[View the interactive HTML report](https://leo5525leo.github.io/Market-Direction-Classification/ML_Final_Project.html)**
 
 ---
 
