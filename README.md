@@ -1,4 +1,4 @@
-## 🧠 Project Overview
+##  Project Overview
 
 This project studies whether the **next-day market direction**
 can be predicted using **only market-based variables**
@@ -13,7 +13,7 @@ in equity markets.
 
 ---
 
-## 🧮 Features & Target (Summary)
+##  Features & Target (Summary)
 
 - **Target**: next-day direction (up vs. down)
 - **Predictors**:
@@ -25,7 +25,7 @@ Only market-derived variables are used.
 
 ---
 
-## 🧪 Methodology (High-level)
+##  Methodology (High-level)
 
 - Logistic regression (binomial GLM)
 - Time-series–respecting evaluation:
@@ -37,7 +37,7 @@ Only market-derived variables are used.
 
 ---
 
-## 📊 Outputs
+##  Outputs
 
 The analysis produces:
 - Out-of-sample accuracy and AUC
